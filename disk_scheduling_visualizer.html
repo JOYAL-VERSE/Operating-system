@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Disk Scheduling Algorithm Visualizer</title>
+<style>
+:root{--bg:#0b1020;--panel:#141c31;--panel2:#1a2540;--text:#edf2ff;--muted:#9eaccb;--accent:#7c9cff;--line:#2a3858;--green:#56d6a2}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 15% 0%,#1a2a50 0,transparent 35%),var(--bg);color:var(--text);font:15px/1.55 Inter,system-ui,Segoe UI,sans-serif}
+header{padding:38px 6vw 24px;border-bottom:1px solid var(--line)}.eyebrow{color:var(--green);font-weight:700;letter-spacing:.13em;text-transform:uppercase;font-size:12px}
+h1{font-size:clamp(30px,5vw,48px);line-height:1.1;margin:10px 0}.sub{color:var(--muted);max-width:700px}
+main{max-width:1200px;margin:28px auto;padding:0 20px}.layout{display:grid;grid-template-columns:340px 1fr;gap:20px}.card{background:linear-gradient(160deg,var(--panel),#11192c);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 15px 45px #0002}
+h2{font-size:18px;margin:0 0 16px}label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input,select{width:100%;background:#0c1427;border:1px solid #344465;border-radius:9px;color:var(--text);padding:11px;font:inherit;outline:none}input:focus,select:focus{border-color:var(--accent)}
+button{border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer;background:var(--accent);color:#071126}button:hover{filter:brightness(1.1)}.secondary{background:#263554;color:var(--text)}.actions{display:flex;gap:9px;margin-top:18px;flex-wrap:wrap}.hint{color:var(--muted);font-size:12px;margin-top:6px}
+.algos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.algo{background:var(--panel2);border:1px solid var(--line);padding:12px;border-radius:12px}.algo b{display:block;color:#cbd7ff}.algo span{font-size:12px;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}.stat{background:#0d1629;border:1px solid var(--line);border-radius:12px;padding:14px}.stat small{color:var(--muted)}.stat strong{display:block;font-size:25px;margin-top:3px}
+canvas{width:100%;height:300px;background:#0d1629;border:1px solid var(--line);border-radius:12px;margin-top:12px}
+.resultline{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin:12px 0}.sequence{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.pill{background:#263554;border:1px solid #3a4c70;border-radius:8px;padding:6px 9px;font-variant-numeric:tabular-nums}.pill:first-child{background:#214b4a;border-color:#397f73}
+table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:600}.note{color:var(--muted);font-size:13px;margin-top:20px}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.algos{grid-template-columns:repeat(2,1fr)}}@media(max-width:500px){.stats{grid-template-columns:1fr}.algos{grid-template-columns:1fr}header{padding:28px 20px}}
+</style></head>
+<body>
+<header><div class="eyebrow">Operating Systems • Interactive Lab</div><h1>Disk Scheduling<br>Visualizer</h1><p class="sub">Explore FCFS, SSTF, SCAN, C-SCAN, LOOK and C-LOOK. Change the request queue, run an algorithm and compare the total head movement.</p></header>
+<main>
+<div class="layout">
+<section class="card"><h2>Simulation settings</h2>
+<label for="queue">Disk request queue</label><input id="queue" value="98, 183, 37, 122, 14, 124, 65, 67"><div class="hint">Enter track numbers separated by commas.</div>
+<label for="head">Initial head position</label><input id="head" type="number" min="0" value="53">
+<label for="size">Disk size (number of tracks)</label><input id="size" type="number" min="2" value="200">
+<label for="direction">Initial direction (for SCAN / LOOK)</label><select id="direction"><option value="right">Towards higher track numbers →</option><option value="left">Towards lower track numbers ←</option></select>
+<label for="algorithm">Algorithm</label><select id="algorithm"><option>FCFS</option><option>SSTF</option><option>SCAN</option><option>C-SCAN</option><option>LOOK</option><option>C-LOOK</option></select>
+<div class="actions"><button onclick="run()">Run simulation</button><button class="secondary" onclick="compare()">Compare all</button><button class="secondary" onclick="resetDemo()">Reset demo</button></div>
+<p class="hint">Valid tracks: 0 to disk size − 1. The initial head position must be within this range.</p>
+</section>
+<section class="card"><h2>Head movement visualization</h2><div class="stats"><div class="stat"><small>Total head movement</small><strong id="total">—</strong></div><div class="stat"><small>Requests served</small><strong id="served">—</strong></div><div class="stat"><small>Average movement</small><strong id="average">—</strong></div></div>
+<canvas id="chart" width="900" height="300"></canvas><div class="resultline"><span id="algoName">Choose an algorithm and run it.</span><span id="directionInfo"></span></div><div class="sequence" id="sequence"></div>
+</section></div>
+<section class="card" style="margin-top:20px"><h2>Algorithm comparison</h2><div id="comparison" class="hint">Click “Compare all” to calculate total head movement for every algorithm using the current inputs.</div></section>
+<section class="card" style="margin-top:20px"><h2>How the algorithms work</h2><div class="algos">
+<div class="algo"><b>FCFS</b><span>Serves requests in the order they arrive. Simple and fair, but may cause large movements.</span></div>
+<div class="algo"><b>SSTF</b><span>Chooses the request closest to the current head position. Can cause starvation.</span></div>
+<div class="algo"><b>SCAN</b><span>Moves in one direction to the disk end, then reverses direction. Also called the elevator algorithm.</span></div>
+<div class="algo"><b>C-SCAN</b><span>Moves in one direction to the end, jumps to the beginning, and continues in the same direction.</span></div>
+<div class="algo"><b>LOOK</b><span>Like SCAN, but reverses at the last request instead of travelling to the physical disk end.</span></div>
+<div class="algo"><b>C-LOOK</b><span>Like C-SCAN, but jumps between the last and first pending requests.</span></div>
+</div><p class="note">Note: For C-SCAN and C-LOOK, the wrap-around movement is included in total head movement. For SCAN and C-SCAN, the head travels to the physical disk boundary before reversing or wrapping.</p></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+function getInput(){let q=$('queue').value.split(',').map(x=>x.trim()).filter(Boolean).map(Number),h=Number($('head').value),n=Number($('size').value),d=$('direction').value;
+if(!q.length||q.some(x=>!Number.isInteger(x))||!Number.isInteger(h)||!Number.isInteger(n)||n<2||h<0||h>=n||q.some(x=>x<0||x>=n))throw Error('Enter valid integer track numbers between 0 and disk size − 1.');return{q,h,n,d};}
+function schedule(name,{q,h,n,d}){let order=[h],cur=h,remaining=[...q],moves=0;const add=x=>{moves+=Math.abs(x-cur);cur=x;order.push(x)};
+if(name==='FCFS'){q.forEach(add)}
+else if(name==='SSTF'){while(remaining.length){remaining.sort((a,b)=>Math.abs(a-cur)-Math.abs(b-cur));let x=remaining.shift();add(x)}}
+else {let left=q.filter(x=>x<h).sort((a,b)=>b-a),right=q.filter(x=>x>=h).sort((a,b)=>a-b);
+if(name==='SCAN'){if(d==='right'){right.forEach(add);if(cur!==n-1)add(n-1);left.forEach(add)}else{left.forEach(add);if(cur!==0)add(0);right.sort((a,b)=>a-b).forEach(add)}}
+if(name==='LOOK'){if(d==='right'){right.forEach(add);left.forEach(add)}else{left.forEach(add);right.sort((a,b)=>a-b).forEach(add)}}
+if(name==='C-SCAN'){if(d==='right'){right.forEach(add);if(cur!==n-1)add(n-1);if(cur!==0)add(0);left.sort((a,b)=>a-b).forEach(add)}else{left.forEach(add);if(cur!==0)add(0);if(cur!==n-1)add(n-1);right.forEach(add)}}
+if(name==='C-LOOK'){if(d==='right'){right.forEach(add);if(left.length){add(left[left.length-1]);left.slice(0,-1).reverse().forEach(add)}}else{left.forEach(add);if(right.length){add(right[right.length-1]);right.slice(0,-1).reverse().forEach(add)}}}
+}
+return{order,moves,served:q.length};}
+function draw(order,n){let c=$('chart'),ctx=c.getContext('2d'),w=c.width,h=c.height;ctx.clearRect(0,0,w,h);let pad={l:48,r:25,t:25,b:40},maxX=w-pad.l-pad.r,maxY=h-pad.t-pad.b;
+ctx.strokeStyle='#344465';ctx.lineWidth=1;ctx.fillStyle='#9eaccb';ctx.font='13px system-ui';
+for(let i=0;i<=4;i++){let y=pad.t+i*maxY/4;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();ctx.fillText(String(Math.round((n-1)*(1-i/4))),8,y+4)}
+if(order.length<2)return;let maxIndex=order.length-1;
+let pts=order.map((v,i)=>({x:pad.l+i/maxIndex*maxX,y:pad.t+(n-1-v)/(n-1)*maxY}));
+ctx.strokeStyle='#7c9cff';ctx.lineWidth=3;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
+pts.forEach((p,i)=>{ctx.fillStyle=i===0?'#56d6a2':'#7c9cff';ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill()});
+ctx.fillStyle='#9eaccb';ctx.fillText('Request sequence →',w/2-55,h-10);}
+function show(name,r){$('total').textContent=r.moves+' tracks';$('served').textContent=r.served;$('average').textContent=(r.served?r.moves/r.served:0).toFixed(2);$('algoName').textContent=name+' • Head movement';$('directionInfo').textContent='Start: '+r.order[0];$('sequence').innerHTML=r.order.map((x,i)=>`<span class="pill" title="${i===0?'Initial head':'Step '+i}">${x}</span>`).join('');draw(r.order,getInput().n);}
+function run(){try{let a=$('algorithm').value;show(a,schedule(a,getInput()));}catch(e){alert(e.message)}}
+function compare(){try{let input=getInput(),names=['FCFS','SSTF','SCAN','C-SCAN','LOOK','C-LOOK'],rows=names.map(name=>({name,...schedule(name,input)})).sort((a,b)=>a.moves-b.moves);$('comparison').innerHTML='<table><thead><tr><th>Algorithm</th><th>Total head movement</th><th>Requests served</th></tr></thead><tbody>'+rows.map((r,i)=>`<tr><td>${i===0?'★ ':''}${r.name}</td><td><b>${r.moves} tracks</b></td><td>${r.served}</td></tr>`).join('')+'</tbody></table>'; }catch(e){alert(e.message)}}
+function resetDemo(){$('queue').value='98, 183, 37, 122, 14, 124, 65, 67';$('head').value=53;$('size').value=200;$('direction').value='right';$('algorithm').value='FCFS';$('comparison').textContent='Click “Compare all” to calculate total head movement for every algorithm using the current inputs.';run()}
+run();
+</script></body></html>
